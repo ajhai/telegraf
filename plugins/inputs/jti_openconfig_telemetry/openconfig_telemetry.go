@@ -277,10 +277,12 @@ func (m *OpenConfigTelemetry) collectData(ctx context.Context,
 		m.wg.Add(1)
 		go func(ctx context.Context, sensor sensorConfig) {
 			defer m.wg.Done()
-
+			log.Printf("Subscribing to sensor %s on device %s", sensor.measurementName, grpcServer)
 			for {
+				log.Printf("D! Sending subscription request for %s to device %s", sensor.measurementName, grpcServer)
 				stream, err := c.TelemetrySubscribe(ctx,
 					&telemetry.SubscriptionRequest{PathList: sensor.pathList})
+				log.Printf("D! Subscription Done!! Measurement in which data will be stored: %s, Device: %s", sensor.measurementName, grpcServer)
 				if err != nil {
 					rpcStatus, _ := status.FromError(err)
 					// If service is currently unavailable and may come back later, retry
@@ -318,10 +320,17 @@ func (m *OpenConfigTelemetry) collectData(ctx context.Context,
 					tags["device"] = grpcServer
 
 					dgroups := m.extractData(r, grpcServer)
-
+					
+                                        log.Printf("===================================================")
+                                        log.Printf("system_id: %v", r.SystemId)
+					log.Printf("component_id: %v", r.ComponentId)
+			                log.Printf("sub_component_id: %v", r.SubComponentId)
+	                                log.Printf("path: %v", r.Path)
+	                                log.Printf("timestamp: %v", r.Timestamp)
+					
 					// Print final data collection
 					log.Printf("D! Available collection for %s is: %v", grpcServer, dgroups)
-
+			
 					tnow := time.Now()
 					// Iterate through data groups and add them
 					for _, group := range dgroups {
@@ -373,8 +382,10 @@ func (m *OpenConfigTelemetry) Start(acc telegraf.Accumulator) error {
 		// If a certificate is provided, open a secure channel. Else open insecure one
 		if transportCredentials != nil {
 			grpcClientConn, err = grpc.Dial(server, grpc.WithTransportCredentials(transportCredentials))
+			log.Printf("D! Opened a secure channel to %s on port %s", grpcServer, grpcPort)
 		} else {
 			grpcClientConn, err = grpc.Dial(server, grpc.WithInsecure())
+			log.Printf("D! Opened an insecure channel to %s on port %s", grpcServer, grpcPort)
 		}
 		if err != nil {
 			log.Printf("E! Failed to connect to %s: %v", server, err)
@@ -400,6 +411,9 @@ func (m *OpenConfigTelemetry) Start(acc telegraf.Accumulator) error {
 				log.Printf("E! Failed to authenticate the user for %s", server)
 				continue
 			}
+			log.Printf("D! Successfully authenticated using username, password for device %s", grpcServer)
+		} else {
+			log.Printf("D! Using no authentication for device %s", grpcServer)	
 		}
 
 		// Subscribe and gather telemetry data
